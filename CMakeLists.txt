@@ -31,7 +31,7 @@ project(shadow CXX C)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 17)
 
-set(PS3RECOMP_DIR "G:/recomp/ps3games/ps3recomp" CACHE PATH "ps3recomp repo root")
+set(PS3RECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ps3recomp" CACHE PATH "ps3recomp repo root")
 set(PS3RECOMP_RUNTIME_LIB "${PS3RECOMP_DIR}/build/ps3recomp_runtime.lib"
     CACHE FILEPATH "prebuilt runtime library")
 
