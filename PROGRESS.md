@@ -15,7 +15,7 @@
 | 8. First boot | Enter the recompiled CRT | ✅ — reaches cellGcmInit + flip loop |
 | 9. PSARC | Open `nico.psarc` through the HLE `cellFs` VFS | ⬜ |
 | 10. Graphics | RSX → D3D12 via the live NV4097 engine | 🟡 — engine up, window open, 0 draw packets |
-| 11. SPURS | Job queue dispatch into the 8 lifted images | ⬜ — **blocked**: SPURS 2.0 + cellSpursJq unimplemented |
+| 11. SPURS | Job queue dispatch into the 8 lifted images | 🟡 — **shim landed** (`src/hle_overrides.c`, 15 NIDs, untested); real fix still belongs upstream in ps3recomp |
 | 12. Input / audio | cellPad, cellAudio | ⬜ |
 
 ## Detailed log
@@ -127,3 +127,67 @@ belongs upstream in ps3recomp, not here.
 **Next:** implement `cellSpursInitializeWithAttribute2` + `CreateTaskset2` in
 ps3recomp's `cellSpurs`, then `cellSpursJq`, then re-run and see whether FIOS
 opens the PSARC.
+
+### 2026-10-19 — Bring-up shim for the 15 unresolved NIDs (`src/hle_overrides.c`)
+
+Written on a machine without the game and without Windows, so it is **compiled
+and link-validated but not boot-tested**. Its job is to unblock the boot far
+enough to answer one question — *does FIOS open `nico.psarc` once a SPURS
+instance exists?* — while the real 2.0 surface is figured out upstream.
+
+**Sources.** Every ABI in the shim comes from the reference Cell SDK headers
+mirrored in `FirebirdTA01/PS3DK` (`sdk/include/cell/spurs/{types,task,task_types,job_queue,job_queue_port2}.h`),
+cross-checked against RPCS3's reverse-engineered `cellSpurs.h` layouts (which
+agree on every offset the shim reads — `CellSpursTasksetAttribute2` 512 B
+align 8, `CellSpursTaskAttribute2` 256 B align 16, `TaskLsPattern` 16 B) and
+against RPCS3's *behaviour* for the `*2` initializers and for
+`cellVideoOutGetScreenSize`. No GPL code was copied. All 15 NIDs were
+re-verified with ps3recomp's own `nid_database.compute_nid(name)` against the
+table above before a single one was written.
+
+**The design: forward 2.0 into the 1.0 path that already works.**
+
+| NID | shim | forwards to |
+|---|---|---|
+| `cellSpursInitializeWithAttribute2` | zeros the upper 4 KB of the 8 KB `CellSpurs2` instance, then the shared init | `cellSpursInitializeWithAttribute` |
+| `cellSpursCreateTaskset2` | synthesizes a v1 `CellSpursTasksetAttribute` in the taskset's reserved tail (offset 0x28A8, native-endian, `tasksetSize=0x2900` — a size `CreateTasksetWithAttribute` already accepts) | `cellSpursCreateTasksetWithAttribute` |
+| `_cellSpursTasksetAttribute2Initialize` | writes the RPCS3/SDK defaults (priority=1 ×8, maxContention=8) at the real v2 offsets | — |
+| `_cellSpursTaskAttribute2Initialize` | zeroes 256 B, stores revision | — |
+| `cellSpursCreateTask2` | pulls context/lsPattern out of the v2 task attribute; 5-arg → 7-arg translation | `cellSpursCreateTask` |
+| `_cellSpursCreateJobQueue` | **ctx handler**: 10 args, arg9/arg10 read off the guest stack at SP+112 (the `cellSaveData`/`sceNpScore` pattern) | `cellSpursCreateJobQueue` |
+| `_cellSpursJobQueuePort2PushJobBody` | pushes "as the queue": `Port2Create` aliases the port's first word to the queue slot | `cellSpursJobQueuePush` |
+| `cellSpursJobQueuePort2Sync` | `CELL_OK` — the Jq HLE completes jobs inside the push | — |
+| six `cellSpursJobQueueAttributeSet*` | store into the opaque 512 B attribute at the offsets this runtime's own Initialize/Create use (host-endian, as that pair speaks) | — |
+| `cellVideoOutGetScreenSize` | null → `ILLEGAL_PARAMETER`, non-primary → `UNSUPPORTED_VIDEO_OUT`, else `VALUE_IS_NOT_SET` — RPCS3's proven answer for this title | — |
+
+Registered exactly like twistedmetal-psn's `src/hle_overrides.c`: one
+`__attribute__((constructor))` calling `ps3_hle_register` (14) +
+`ps3_hle_register_ctx` (the ten-argument one), for NIDs no upstream module
+defines — verified first-match-wins cannot collide with the generated
+`gen/ppu_hle_nids.cpp` table.
+
+**`sys_ppu_thread_once` (0xA3E3BE68) is deliberately not shimmed.** ps3recomp
+implements it today (`libs/system/sysPrxForUser.c`); it is in the first-boot
+list only because that run predates it. A fresh `tools/relift.sh` regenerates
+the NID table and it resolves on its own.
+
+**Validation done here:** `gcc -Wall -Wextra` compiles the translation unit
+clean, and all five forwarded symbols (`cellSpursInitializeWithAttribute`,
+`cellSpursCreateTasksetWithAttribute`, `cellSpursCreateTask`,
+`cellSpursCreateJobQueue`, `cellSpursJobQueuePush`) resolve against freshly
+built `cellSpurs.o`/`cellSpursJq.o`. What was **not** done: running it.
+
+**Known limits (in the file header too):** the v2 taskset's `argTaskset` is
+carried in the synthesized attribute but currently dropped —
+`cellSpursCreateTasksetWithAttribute` passes `0` to `spurs_create_taskset`,
+an upstream gap worth fixing there, not here; job-queue pushes still complete
+synchronously with no SPU execution (the runtime's pre-existing Jq design);
+and the whole point of the file is to be deleted one day in favour of a real
+SPURS 2.0 implementation upstream.
+
+**Test recipe (needs the game + Windows):** `tools/relift.sh`, rebuild, run.
+In order: no `CreateTaskset REJECT unregistered spurs=…` → the FIOS
+`fios scheduler` / `mediathread` lines stop parking on
+`wait for invalid cond` → first `cellFs` open of `nico.psarc` → first
+non-zero `live-draw … packets[queued=…]`. If it dies after (2), the task's
+SPU-side is the next wall; capture the NID/log here.

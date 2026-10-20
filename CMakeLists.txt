@@ -61,6 +61,7 @@ add_executable(shadow
     ${GEN_SOURCES}
     ${SPU_SOURCES}
     ${RECOMP_SOURCES}
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/hle_overrides.c"  # SPURS 2.0 / Jq Port2 / avconf NIDs
 )
 
 # Every libs/* subdir (the generated NID table #includes each module's header).

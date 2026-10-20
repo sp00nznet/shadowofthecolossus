@@ -206,6 +206,17 @@ no worker to signal. That single import is the whole wall. The sister ports all
 used SPURS 1.0 (`cellSpursInitializeWithAttribute`, `CreateTaskset`), which the
 runtime does implement — this title is the first to need the 2.0 surface.
 
+> **Update (2026-10-19):** the wall above is now bridged locally by
+> [`src/hle_overrides.c`](src/hle_overrides.c) — a 15-NID shim that forwards the
+> SPURS 2.0 surface onto the SPURS 1.0 implementations the runtime already has
+> (struct-copying the 2.0 attribute objects into their 1.0 equivalents), plus
+> `cellVideoOutGetScreenSize` and `sys_ppu_thread_once`. The unresolved-NID table
+> and `CreateTaskset REJECT unregistered` log line above should therefore be gone
+> on the next build — the run should advance to the FIOS/`nico.psarc` stage.
+> **Untested:** no game copy on the build machine; see `PROGRESS.md` for the test
+> recipe. If boot still stalls, the next suspects are the Jq `Port2Sync` semantics
+> and the `nspu=6` SPU job pipeline.
+
 ## 🛠️ Pipeline
 
 ```
