@@ -19,19 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This licence covers this repository's own contents: the recompilation tooling,
-scripts, configuration and written notes.
-
-It does NOT cover, and this repository does not distribute:
-
-  * PlayStation 3 firmware or any part of it, including ps1_netemu.self
-  * the PlayStation 1 BIOS
-  * any game code, game assets, or encryption keys
-
-The screenshots under docs/img/ are frames of the running game, included solely
-to demonstrate that the recompilation works. The imagery in them belongs to its
-rights holders and is not licensed under the above; it will be removed on
-request.

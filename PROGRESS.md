@@ -127,3 +127,16 @@ belongs upstream in ps3recomp, not here.
 **Next:** implement `cellSpursInitializeWithAttribute2` + `CreateTaskset2` in
 ps3recomp's `cellSpurs`, then `cellSpursJq`, then re-run and see whether FIOS
 opens the PSARC.
+
+### 2026-10-20 — Upstream check after ps3recomp v0.16.0
+
+Searched ps3recomp `origin/master` (v0.16.0, 2026-10-19) for each unresolved
+NID's handler. Still missing: all of SPURS 2.0, Jq Port2, the six Jq attribute
+setters, and `0xFAA275A4`. Now present: `sys_ppu_thread_once`
+(`libs/system/sysPrxForUser.c`), which resolves on the next relift. Every tool
+and flag `tools/relift.sh` uses still exists, and the CMake source list matches
+vf5 and simpsons, which the regression gate builds against master. Not yet
+rebuilt or re-run. Table and notes: `docs/spurs2-wall.md`.
+
+PR #1 (a local SPURS 2.0 → 1.0 shim) was declined: by its own comments it
+mirrors RPCS3 source and Sony SDK headers, and SPURS 2.0 belongs in ps3recomp.
